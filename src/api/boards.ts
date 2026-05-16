@@ -27,6 +27,21 @@ export const createList = (boardId: string, title: string) =>
 export const renameList = (id: string, title: string) =>
   client.put(`/lists/${id}`, { title }).then((r) => r.data)
 
+export const deleteList = (id: string) => client.delete(`/lists/${id}`)
+
+export const deleteWorkspace = (id: string) => client.delete(`/workspaces/${id}`)
+
+export const searchCards = (q: string) =>
+  client.get<SearchResult[]>('/search', { params: { q } }).then((r) => r.data)
+
+export interface SearchResult {
+  id: string
+  title: string
+  description?: string | null
+  list: { id: string; title: string }
+  board: { id: string; title: string; workspaceId: string }
+}
+
 export const reorderLists = (boardId: string, lists: { id: string; position: number }[]) =>
   client.put('/lists/reorder', { boardId, lists })
 

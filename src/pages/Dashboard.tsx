@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { getWorkspaces, createWorkspace, createBoard, renameWorkspace } from '../api/boards'
+import { getWorkspaces, createWorkspace, createBoard, renameWorkspace, deleteWorkspace, searchCards, SearchResult } from '../api/boards'
 import { logout } from '../api/auth'
 import { useAuthStore } from '../store/auth'
 import type { Workspace } from '../types'
@@ -12,8 +12,41 @@ export default function Dashboard() {
   const [newBoardTitle, setNewBoardTitle] = useState<Record<string, string>>({})
   const [editingWs, setEditingWs] = useState<string | null>(null)
   const [editingWsName, setEditingWsName] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+  const [searching, setSearching] = useState(false)
+  const [showResults, setShowResults] = useState(false)
+  const searchRef = useRef<HTMLDivElement>(null)
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { user, clearAuth } = useAuthStore()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    getWorkspaces().then(setWorkspaces).catch(() => toast.error('Failed to load workspaces'))
+  }, [])
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setShowResults(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const handleSearch = (q: string) => {
+    setSearchQuery(q)
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    if (!q.trim()) { setSearchResults([]); setShowResults(false); return }
+    searchTimer.current = setTimeout(async () => {
+      setSearching(true)
+      try {
+        const results = await searchCards(q.trim())
+        setSearchResults(results)
+        setShowResults(true)
+      } catch { toast.error('Search failed') }
+      finally { setSearching(false) }
+    }, 300)
+  }
 
   const handleRenameWorkspace = async (wsId: string) => {
     const trimmed = editingWsName.trim()
@@ -26,9 +59,13 @@ export default function Dashboard() {
     setEditingWs(null)
   }
 
-  useEffect(() => {
-    getWorkspaces().then(setWorkspaces).catch(() => toast.error('Failed to load workspaces'))
-  }, [])
+  const handleDeleteWorkspace = async (wsId: string, wsName: string) => {
+    if (!window.confirm(`Delete workspace "${wsName}" and all its boards and cards?`)) return
+    try {
+      await deleteWorkspace(wsId)
+      setWorkspaces((prev) => prev.filter((w) => w.id !== wsId))
+    } catch { toast.error('Failed to delete workspace') }
+  }
 
   const handleCreateWorkspace = async () => {
     if (!newWsName.trim()) return
@@ -60,6 +97,35 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gray-ui">
       <nav className="bg-white border-b border-gray-border h-[60px] flex items-center justify-between px-6 sticky top-0 z-10">
         <span className="text-navy font-semibold text-lg">Trello</span>
+        <div ref={searchRef} className="relative flex-1 max-w-sm mx-8">
+          <input
+            value={searchQuery}
+            onChange={(e) => handleSearch(e.target.value)}
+            onFocus={() => searchResults.length > 0 && setShowResults(true)}
+            placeholder="Search cards..."
+            className="input-base h-9 w-full pl-8 text-sm"
+          />
+          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-dark text-sm">&#128269;</span>
+          {searching && <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-dark text-xs">...</span>}
+          {showResults && (
+            <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-gray-border rounded-card shadow-lg z-50 max-h-80 overflow-y-auto">
+              {searchResults.length === 0 ? (
+                <div className="px-4 py-3 text-sm text-gray-dark">No results found</div>
+              ) : (
+                searchResults.map((r) => (
+                  <button
+                    key={r.id}
+                    onClick={() => { setShowResults(false); navigate(`/board/${r.board.id}?card=${r.id}`) }}
+                    className="w-full text-left px-4 py-3 hover:bg-blue-pale transition-colors border-b border-gray-border last:border-0"
+                  >
+                    <div className="text-sm font-semibold text-navy truncate">{r.title}</div>
+                    <div className="text-xs text-gray-dark mt-0.5">{r.board.title} &rsaquo; {r.list.title}</div>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </div>
         <div className="flex items-center gap-4">
           <span className="text-sm text-gray-dark">{user?.name}</span>
           <button onClick={handleLogout} className="btn-ghost text-sm px-3 py-1 min-h-0">Log out</button>
@@ -82,8 +148,8 @@ export default function Dashboard() {
 
         {workspaces.map((ws) => (
           <div key={ws.id} className="mb-8">
-            <h2 className="text-base font-semibold text-navy-2 mb-3 flex items-center gap-2">
-              <span className="w-6 h-6 bg-primary rounded text-white text-xs flex items-center justify-center font-bold">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="w-6 h-6 bg-primary rounded text-white text-xs flex items-center justify-center font-bold shrink-0">
                 {ws.name[0]}
               </span>
               {editingWs === ws.id ? (
@@ -93,15 +159,20 @@ export default function Dashboard() {
                   onChange={(e) => setEditingWsName(e.target.value)}
                   onBlur={() => handleRenameWorkspace(ws.id)}
                   onKeyDown={(e) => { if (e.key === 'Enter') handleRenameWorkspace(ws.id); if (e.key === 'Escape') setEditingWs(null) }}
-                  className="text-base font-semibold text-navy-2 border-b border-primary outline-none bg-transparent"
+                  className="text-base font-semibold text-navy-2 border-b border-primary outline-none bg-transparent flex-1"
                 />
               ) : (
                 <span
-                  className="cursor-pointer hover:underline"
+                  className="text-base font-semibold text-navy-2 cursor-pointer hover:underline flex-1"
                   onClick={() => { setEditingWsName(ws.name); setEditingWs(ws.id) }}
                 >{ws.name}</span>
               )}
-            </h2>
+              <button
+                onClick={() => handleDeleteWorkspace(ws.id, ws.name)}
+                className="text-gray-dark hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors text-xs opacity-50 hover:opacity-100"
+                title="Delete workspace"
+              >&#128465;</button>
+            </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
               {(ws.boards ?? []).map((board) => (
                 <button

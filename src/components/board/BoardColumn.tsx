@@ -2,7 +2,7 @@ import { useState, useRef } from 'react'
 import { Droppable } from '@hello-pangea/dnd'
 import CardItem from './CardItem'
 import { createCard } from '../../api/cards'
-import { renameList } from '../../api/boards'
+import { renameList, deleteList } from '../../api/boards'
 import type { List, Card } from '../../types'
 import toast from 'react-hot-toast'
 
@@ -12,7 +12,7 @@ interface Props {
   onCardAdded: (card: Card) => void
 }
 
-export default function BoardColumn({ list, onCardClick, onCardAdded }: Props) {
+export default function BoardColumn({ list, onCardClick }: Props) {
   const [adding, setAdding] = useState(false)
   const [title, setTitle] = useState('')
   const [editingTitle, setEditingTitle] = useState(false)
@@ -32,11 +32,17 @@ export default function BoardColumn({ list, onCardClick, onCardAdded }: Props) {
     setEditingTitle(false)
   }
 
+  const handleDeleteList = async () => {
+    if (!window.confirm(`Delete list "${list.title}" and all its cards?`)) return
+    try {
+      await deleteList(list.id)
+    } catch { toast.error('Failed to delete list') }
+  }
+
   const handleAdd = async () => {
     if (!title.trim()) { setAdding(false); return }
     try {
-      const card = await createCard(list.id, title.trim())
-      onCardAdded(card)
+      await createCard(list.id, title.trim())
       setTitle('')
       setAdding(false)
     } catch { toast.error('Failed to add card') }
@@ -45,22 +51,29 @@ export default function BoardColumn({ list, onCardClick, onCardAdded }: Props) {
   return (
     <div className="w-64 shrink-0 flex flex-col">
       <div className="bg-gray-ui rounded-card p-2">
-        {editingTitle ? (
-          <input
-            ref={titleInputRef}
-            autoFocus
-            value={listTitle}
-            onChange={(e) => setListTitle(e.target.value)}
-            onBlur={handleRenameList}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleRenameList() } if (e.key === 'Escape') { setListTitle(list.title); setEditingTitle(false) } }}
-            className="text-sm font-semibold text-navy px-2 py-1 mb-1 w-full rounded border border-primary outline-none bg-white"
-          />
-        ) : (
-          <h3
-            className="text-sm font-semibold text-navy px-2 py-1 mb-1 cursor-pointer hover:bg-black/5 rounded"
-            onClick={() => { setListTitle(list.title); setEditingTitle(true) }}
-          >{list.title}</h3>
-        )}
+        <div className="flex items-center gap-1 mb-1">
+          {editingTitle ? (
+            <input
+              ref={titleInputRef}
+              autoFocus
+              value={listTitle}
+              onChange={(e) => setListTitle(e.target.value)}
+              onBlur={handleRenameList}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleRenameList() } if (e.key === 'Escape') { setListTitle(list.title); setEditingTitle(false) } }}
+              className="text-sm font-semibold text-navy px-2 py-1 flex-1 rounded border border-primary outline-none bg-white"
+            />
+          ) : (
+            <h3
+              className="text-sm font-semibold text-navy px-2 py-1 flex-1 cursor-pointer hover:bg-black/5 rounded"
+              onClick={() => { setListTitle(list.title); setEditingTitle(true) }}
+            >{list.title}</h3>
+          )}
+          <button
+            onClick={handleDeleteList}
+            className="text-gray-dark hover:text-red-500 p-1 rounded hover:bg-black/5 transition-colors text-xs opacity-60 hover:opacity-100"
+            title="Delete list"
+          >&#10005;</button>
+        </div>
         <Droppable droppableId={list.id}>
           {(provided, snapshot) => (
             <div

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { DragDropContext, DropResult } from '@hello-pangea/dnd'
 import toast from 'react-hot-toast'
 import { getBoard, createList } from '../api/boards'
@@ -12,6 +12,7 @@ import type { Board as BoardType, Card, List } from '../types'
 export default function Board() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [board, setBoard] = useState<BoardType | null>(null)
   const [selectedCard, setSelectedCard] = useState<Card | null>(null)
   const [addingList, setAddingList] = useState(false)
@@ -19,18 +20,20 @@ export default function Board() {
 
   useEffect(() => {
     if (!id) return
-    getBoard(id).then(setBoard).catch(() => { toast.error('Board not found'); navigate('/') })
+    getBoard(id).then((b) => {
+      setBoard(b)
+      const cardId = searchParams.get('card')
+      if (cardId) {
+        const card = (b.lists ?? []).flatMap((l) => l.cards ?? []).find((c) => c.id === cardId)
+        if (card) setSelectedCard({ ...card, checklists: card.checklists ?? [] })
+      }
+    }).catch(() => { toast.error('Board not found'); navigate('/') })
   }, [id])
 
   useSocket(id ?? null, {
-    'card:created': (card) => setBoard((b) => {
-      if (!b) return b
-      return { ...b, lists: b.lists!.map((l) => {
-        if (l.id !== (card as Card).listId) return l
-        if ((l.cards ?? []).some((c) => c.id === (card as Card).id)) return l
-        return { ...l, cards: [...(l.cards ?? []), card as Card] }
-      })}
-    }),
+    'card:created': (card) => setBoard((b) => b ? {
+      ...b, lists: b.lists!.map((l) => l.id === (card as Card).listId ? { ...l, cards: [...(l.cards ?? []), card as Card] } : l)
+    } : b),
     'card:moved': (data) => {
       const { id: cardId, listId, position } = data as { id: string; listId: string; position: number }
       setBoard((b) => {
@@ -49,6 +52,9 @@ export default function Board() {
     'list:created': (list) => setBoard((b) => b ? { ...b, lists: [...(b.lists ?? []), { ...(list as List), cards: [] }] } : b),
     'list:updated': (list) => setBoard((b) => b ? {
       ...b, lists: b.lists!.map((l) => l.id === (list as List).id ? { ...l, title: (list as List).title } : l)
+    } : b),
+    'list:deleted': (data) => setBoard((b) => b ? {
+      ...b, lists: b.lists!.filter((l) => l.id !== (data as { id: string }).id)
     } : b),
     'list:reordered': (data) => {
       const items = data as { id: string; position: number }[]
