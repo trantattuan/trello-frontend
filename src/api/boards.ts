@@ -1,5 +1,5 @@
 import client from './client'
-import type { Board, Workspace, BoardStats } from '../types'
+import type { Board, Workspace, BoardStats, Label } from '../types'
 
 export const getWorkspaces = () => client.get<Workspace[]>('/workspaces').then((r) => r.data)
 
@@ -48,3 +48,19 @@ export const reorderLists = (boardId: string, lists: { id: string; position: num
 
 export const createLabel = (boardId: string, name: string, color: string) =>
   client.post(`/boards/${boardId}/labels`, { name, color }).then((r) => r.data)
+
+export const updateLabel = (id: string, data: { name?: string; color?: string }) =>
+  client.put<Label>(`/labels/${id}`, data).then((r) => r.data)
+
+export const deleteLabel = (id: string) => client.delete(`/labels/${id}`)
+
+export const updateBoard = (id: string, data: { title?: string; visibility?: string; backgroundUrl?: string }) =>
+  client.put<Board>(`/boards/${id}`, data).then((r) => r.data)
+
+export const deleteBoard = (id: string) => client.delete(`/boards/${id}`)
+
+export const addWorkspaceMember = (wsId: string, email: string) =>
+  client.post<void>(`/workspaces/${wsId}/members`, { email }).then((r) => r.data)
+
+export const removeWorkspaceMember = (wsId: string, userId: string) =>
+  client.delete(`/workspaces/${wsId}/members/${userId}`)

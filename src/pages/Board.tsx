@@ -2,12 +2,15 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { DragDropContext, DropResult } from '@hello-pangea/dnd'
 import toast from 'react-hot-toast'
-import { getBoard, getWorkspace, createList } from '../api/boards'
+import { getBoard, getWorkspace, createList, updateBoard, deleteBoard } from '../api/boards'
 import { moveCard } from '../api/cards'
 import { useSocket } from '../hooks/useSocket'
 import BoardColumn from '../components/board/BoardColumn'
 import CardModal from '../components/card/CardModal'
+import ConfirmDialog from '../components/ui/ConfirmDialog'
 import type { Board as BoardType, Card, List, WorkspaceMember } from '../types'
+
+type Confirm = { message: string; onConfirm: () => void }
 
 export default function Board() {
   const { id } = useParams<{ id: string }>()
@@ -18,11 +21,15 @@ export default function Board() {
   const [selectedCard, setSelectedCard] = useState<Card | null>(null)
   const [addingList, setAddingList] = useState(false)
   const [newListTitle, setNewListTitle] = useState('')
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [boardTitle, setBoardTitle] = useState('')
+  const [confirm, setConfirm] = useState<Confirm | null>(null)
 
   useEffect(() => {
     if (!id) return
     getBoard(id).then((b) => {
       setBoard(b)
+      setBoardTitle(b.title)
       getWorkspace(b.workspaceId).then((ws) => setWsMembers(ws.members ?? []))
       const cardId = searchParams.get('card')
       if (cardId) {
@@ -106,13 +113,56 @@ export default function Board() {
     } catch { toast.error('Failed to add list') }
   }
 
+  const handleSaveBoardTitle = async () => {
+    setEditingTitle(false)
+    if (!board || !id || boardTitle.trim() === board.title || !boardTitle.trim()) return
+    try {
+      await updateBoard(id, { title: boardTitle.trim() })
+      setBoard((prev) => prev ? { ...prev, title: boardTitle.trim() } : prev)
+    } catch { toast.error('Failed to rename board') }
+  }
+
+  const handleDeleteBoard = () => {
+    if (!board) return
+    setConfirm({
+      message: `Xoa board "${board.title}"? Hanh dong nay khong the hoan tac.`,
+      onConfirm: async () => {
+        try {
+          await deleteBoard(id!)
+          navigate('/')
+        } catch { toast.error('Failed to delete board') }
+        setConfirm(null)
+      },
+    })
+  }
+
   if (!board) return <div className="min-h-screen bg-primary flex items-center justify-center text-white">Loading...</div>
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: board.backgroundUrl ? `url(${board.backgroundUrl}) center/cover` : '#0C66E4' }}>
       <nav className="bg-black/30 backdrop-blur-sm h-[60px] flex items-center px-6 gap-4">
         <button onClick={() => navigate('/')} className="text-white/80 hover:text-white text-sm">&#8592; Home</button>
-        <h1 className="text-white font-semibold text-lg">{board.title}</h1>
+        {editingTitle ? (
+          <input
+            autoFocus
+            value={boardTitle}
+            onChange={(e) => setBoardTitle(e.target.value)}
+            onBlur={handleSaveBoardTitle}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleSaveBoardTitle(); if (e.key === 'Escape') { setBoardTitle(board.title); setEditingTitle(false) } }}
+            className="text-white font-semibold text-lg bg-white/20 border border-white/40 rounded px-2 py-0.5 outline-none"
+          />
+        ) : (
+          <h1
+            className="text-white font-semibold text-lg cursor-pointer hover:bg-white/10 px-2 py-0.5 rounded"
+            onClick={() => { setBoardTitle(board.title); setEditingTitle(true) }}
+          >{board.title}</h1>
+        )}
+        <div className="ml-auto">
+          <button
+            onClick={handleDeleteBoard}
+            className="text-red-300 hover:text-red-100 hover:bg-red-500/30 text-sm px-3 py-1 rounded transition-colors"
+          >Xoa board</button>
+        </div>
       </nav>
 
       <DragDropContext onDragEnd={onDragEnd}>
@@ -166,6 +216,15 @@ export default function Board() {
             setSelectedCard((prev) => prev ? { ...prev, ...updated } : prev)
             setBoard((b) => b ? { ...b, lists: b.lists!.map((l) => ({ ...l, cards: (l.cards ?? []).map((c) => c.id === selectedCard.id ? { ...c, ...updated } : c) })) } : b)
           }}
+          onLabelsChange={(labels) => setBoard((b) => b ? { ...b, labels } : b)}
+        />
+      )}
+
+      {confirm && (
+        <ConfirmDialog
+          message={confirm.message}
+          onConfirm={confirm.onConfirm}
+          onCancel={() => setConfirm(null)}
         />
       )}
     </div>

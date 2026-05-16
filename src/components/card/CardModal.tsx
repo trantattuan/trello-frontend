@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import toast from 'react-hot-toast'
 import { updateCard, deleteCard, getComments, addComment, createChecklist, deleteChecklist, addChecklistItem, updateChecklistItem, uploadAttachment, assignMember, removeMember, toggleLabel } from '../../api/cards'
-import { createLabel } from '../../api/boards'
+import { createLabel, updateLabel, deleteLabel } from '../../api/boards'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import type { Card, Comment, Checklist, Label, User, WorkspaceMember } from '../../types'
 
@@ -15,20 +15,26 @@ interface Props {
   onClose: () => void
   onUpdate: (updated: Partial<Card>) => void
   onDelete: (cardId: string) => void
+  onLabelsChange: (labels: Label[]) => void
 }
 
 type Confirm = { message: string; onConfirm: () => void }
+type EditingLabel = { id: string; name: string; color: string }
 
-export default function CardModal({ card, boardId, boardLabels, wsMembers, onClose, onUpdate, onDelete }: Props) {
+export default function CardModal({ card, boardId, boardLabels, wsMembers, onClose, onUpdate, onDelete, onLabelsChange }: Props) {
   const [title, setTitle] = useState(card.title)
   const [description, setDescription] = useState(card.description ?? '')
   const [dueDate, setDueDate] = useState(card.dueDate ? card.dueDate.slice(0, 10) : '')
+  const [dirty, setDirty] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [cardMembers, setCardMembers] = useState<User[]>(card.members?.map((m) => m.user) ?? [])
+  const [memberSearch, setMemberSearch] = useState('')
   const [activeLabels, setActiveLabels] = useState<string[]>(card.labels?.map((l) => l.label.id) ?? [])
   const [labels, setLabels] = useState<Label[]>(boardLabels)
   const [newLabelName, setNewLabelName] = useState('')
   const [newLabelColor, setNewLabelColor] = useState(LABEL_COLORS[0])
   const [showLabelForm, setShowLabelForm] = useState(false)
+  const [editingLabel, setEditingLabel] = useState<EditingLabel | null>(null)
   const [comments, setComments] = useState<Comment[]>([])
   const [commentText, setCommentText] = useState('')
   const [checklists, setChecklists] = useState<Checklist[]>(card.checklists ?? [])
@@ -42,24 +48,29 @@ export default function CardModal({ card, boardId, boardLabels, wsMembers, onClo
     getComments(card.id).then(setComments).catch(() => {})
   }, [card.id])
 
-  const saveTitle = async () => {
-    if (title !== card.title) {
-      await updateCard(card.id, { title })
-      onUpdate({ title })
-    }
-  }
+  const markDirty = () => setDirty(true)
 
-  const saveDescription = async () => {
-    await updateCard(card.id, { description })
-    onUpdate({ description })
-  }
-
-  const handleDueDateChange = async (val: string) => {
-    setDueDate(val)
+  const handleSave = async () => {
+    setSaving(true)
     try {
-      await updateCard(card.id, { dueDate: val || null })
-      onUpdate({ dueDate: val || null })
-    } catch { toast.error('Failed to update due date') }
+      const updates: Partial<Card> = {}
+      if (title.trim() !== card.title) updates.title = title.trim()
+      if (description !== (card.description ?? '')) updates.description = description
+      const newDue = dueDate || null
+      const oldDue = card.dueDate ? card.dueDate.slice(0, 10) : null
+      if (newDue !== oldDue) updates.dueDate = newDue
+
+      if (Object.keys(updates).length > 0) {
+        await updateCard(card.id, updates as Record<string, unknown>)
+        onUpdate(updates)
+      }
+      setDirty(false)
+      toast.success('Saved')
+    } catch {
+      toast.error('Failed to save')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleToggleMember = async (user: User) => {
@@ -87,15 +98,44 @@ export default function CardModal({ card, boardId, boardLabels, wsMembers, onClo
     if (!newLabelName.trim()) return
     try {
       const label = await createLabel(boardId, newLabelName.trim(), newLabelColor) as Label
-      setLabels((prev) => [...prev, label])
+      const updated = [...labels, label]
+      setLabels(updated)
+      onLabelsChange(updated)
       setNewLabelName('')
       setShowLabelForm(false)
     } catch { toast.error('Failed to create label') }
   }
 
+  const handleSaveLabel = async () => {
+    if (!editingLabel) return
+    try {
+      await updateLabel(editingLabel.id, { name: editingLabel.name, color: editingLabel.color })
+      const updated = labels.map((l) => l.id === editingLabel.id ? { ...l, name: editingLabel.name, color: editingLabel.color } : l)
+      setLabels(updated)
+      onLabelsChange(updated)
+      setEditingLabel(null)
+    } catch { toast.error('Failed to update label') }
+  }
+
+  const handleDeleteLabel = (label: Label) => {
+    setConfirm({
+      message: `Xoa label "${label.name}"? Se bi xoa khoi tat ca card.`,
+      onConfirm: async () => {
+        try {
+          await deleteLabel(label.id)
+          const updated = labels.filter((l) => l.id !== label.id)
+          setLabels(updated)
+          onLabelsChange(updated)
+          setActiveLabels((prev) => prev.filter((id) => id !== label.id))
+        } catch { toast.error('Failed to delete label') }
+        setConfirm(null)
+      },
+    })
+  }
+
   const handleDeleteCard = () => {
     setConfirm({
-      message: `Xóa card "${card.title}"? Hành động này không thể hoàn tác.`,
+      message: `Xoa card "${card.title}"? Hanh dong nay khong the hoan tac.`,
       onConfirm: async () => {
         try {
           await deleteCard(card.id)
@@ -108,7 +148,7 @@ export default function CardModal({ card, boardId, boardLabels, wsMembers, onClo
 
   const handleDeleteChecklist = (cl: Checklist) => {
     setConfirm({
-      message: `Xóa checklist "${cl.title}"?`,
+      message: `Xoa checklist "${cl.title}"?`,
       onConfirm: async () => {
         try {
           await deleteChecklist(cl.id)
@@ -149,10 +189,14 @@ export default function CardModal({ card, boardId, boardLabels, wsMembers, onClo
   }
 
   const handleToggleItem = async (checklistId: string, itemId: string, isDone: boolean) => {
-    await updateChecklistItem(itemId, isDone)
-    setChecklists((prev) => prev.map((cl) => cl.id === checklistId
-      ? { ...cl, items: cl.items.map((i) => i.id === itemId ? { ...i, isDone } : i) }
-      : cl))
+    try {
+      await updateChecklistItem(itemId, isDone)
+      const newChecklists = checklists.map((cl) => cl.id === checklistId
+        ? { ...cl, items: cl.items.map((i) => i.id === itemId ? { ...i, isDone } : i) }
+        : cl)
+      setChecklists(newChecklists)
+      onUpdate({ checklists: newChecklists })
+    } catch { toast.error('Failed to update item') }
   }
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -164,6 +208,11 @@ export default function CardModal({ card, boardId, boardLabels, wsMembers, onClo
     } catch { toast.error('Upload failed') }
   }
 
+  const filteredMembers = wsMembers.filter(({ user }) =>
+    user.name.toLowerCase().includes(memberSearch.toLowerCase()) ||
+    user.email.toLowerCase().includes(memberSearch.toLowerCase())
+  )
+
   return (
     <>
       <div className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 p-4 pt-12 overflow-y-auto" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -171,8 +220,7 @@ export default function CardModal({ card, boardId, boardLabels, wsMembers, onClo
           <div className="flex justify-between items-start mb-4">
             <input
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              onBlur={saveTitle}
+              onChange={(e) => { setTitle(e.target.value); markDirty() }}
               className="text-lg font-semibold text-navy bg-transparent border-b-2 border-transparent focus:border-primary outline-none flex-1 mr-4"
             />
             <button onClick={onClose} className="text-gray-mid hover:text-navy text-xl leading-none">&times;</button>
@@ -193,8 +241,7 @@ export default function CardModal({ card, boardId, boardLabels, wsMembers, onClo
                 <label className="text-xs font-semibold text-gray-dark uppercase tracking-wide mb-1 block">Description</label>
                 <textarea
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  onBlur={saveDescription}
+                  onChange={(e) => { setDescription(e.target.value); markDirty() }}
                   rows={8}
                   placeholder="Add a description..."
                   className="w-full text-sm border border-gray-border rounded-card p-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 resize-none text-navy"
@@ -257,6 +304,21 @@ export default function CardModal({ card, boardId, boardLabels, wsMembers, onClo
                 <input ref={fileRef} type="file" className="hidden" onChange={handleFileUpload} />
               </div>
 
+              {/* Save button */}
+              {dirty && (
+                <div className="mb-4 flex gap-2">
+                  <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="btn-primary text-sm h-9 min-h-0 px-4 disabled:opacity-50"
+                  >{saving ? 'Saving...' : 'Save changes'}</button>
+                  <button
+                    onClick={() => { setTitle(card.title); setDescription(card.description ?? ''); setDueDate(card.dueDate ? card.dueDate.slice(0, 10) : ''); setDirty(false) }}
+                    className="btn-ghost text-sm h-9 min-h-0 px-3"
+                  >Discard</button>
+                </div>
+              )}
+
               <div>
                 <h4 className="font-semibold text-sm text-navy mb-3">Comments</h4>
                 {comments.map((c) => (
@@ -283,30 +345,17 @@ export default function CardModal({ card, boardId, boardLabels, wsMembers, onClo
             </div>
 
             {/* Sidebar */}
-            <div className="w-44 shrink-0 space-y-5">
+            <div className="w-48 shrink-0 space-y-5">
               {/* Labels */}
               <div>
                 <p className="text-xs font-semibold text-gray-dark uppercase tracking-wide mb-2">Labels</p>
-                <div className="space-y-0.5">
-                  {labels.map((l) => (
-                    <button
-                      key={l.id}
-                      onClick={() => handleToggleLabel(l.id)}
-                      className="flex items-center gap-2 w-full rounded px-2 py-1 hover:bg-gray-ui transition-colors"
-                    >
-                      <span className="w-3 h-3 rounded-sm shrink-0" style={{ background: l.color }} />
-                      <span className="text-xs text-navy flex-1 text-left truncate">{l.name}</span>
-                      {activeLabels.includes(l.id) && <span className="text-primary text-xs">&#10003;</span>}
-                    </button>
-                  ))}
-                </div>
-                {showLabelForm ? (
-                  <div className="mt-2 space-y-1.5">
+                {editingLabel ? (
+                  <div className="space-y-1.5">
                     <input
                       autoFocus
-                      value={newLabelName}
-                      onChange={(e) => setNewLabelName(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') handleCreateLabel(); if (e.key === 'Escape') setShowLabelForm(false) }}
+                      value={editingLabel.name}
+                      onChange={(e) => setEditingLabel((prev) => prev ? { ...prev, name: e.target.value } : prev)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleSaveLabel(); if (e.key === 'Escape') setEditingLabel(null) }}
                       placeholder="Label name..."
                       className="input-base h-7 text-xs w-full"
                     />
@@ -314,19 +363,72 @@ export default function CardModal({ card, boardId, boardLabels, wsMembers, onClo
                       {LABEL_COLORS.map((c) => (
                         <button
                           key={c}
-                          onClick={() => setNewLabelColor(c)}
+                          onClick={() => setEditingLabel((prev) => prev ? { ...prev, color: c } : prev)}
                           className="w-5 h-5 rounded transition-transform hover:scale-110"
-                          style={{ background: c, outline: c === newLabelColor ? '2px solid #1a1a2e' : 'none', outlineOffset: '1px' }}
+                          style={{ background: c, outline: c === editingLabel.color ? '2px solid #1a1a2e' : 'none', outlineOffset: '1px' }}
                         />
                       ))}
                     </div>
                     <div className="flex gap-1">
-                      <button onClick={handleCreateLabel} className="btn-primary text-xs h-7 min-h-0 px-2 flex-1">Create</button>
-                      <button onClick={() => setShowLabelForm(false)} className="btn-ghost text-xs h-7 min-h-0 px-2">&#10005;</button>
+                      <button onClick={handleSaveLabel} className="btn-primary text-xs h-7 min-h-0 px-2 flex-1">Save</button>
+                      <button onClick={() => setEditingLabel(null)} className="btn-ghost text-xs h-7 min-h-0 px-2">&#10005;</button>
                     </div>
                   </div>
                 ) : (
-                  <button onClick={() => setShowLabelForm(true)} className="text-xs text-primary hover:underline mt-1.5 block">+ New label</button>
+                  <>
+                    <div className="space-y-0.5">
+                      {labels.map((l) => (
+                        <div key={l.id} className="flex items-center gap-1 group">
+                          <button
+                            onClick={() => handleToggleLabel(l.id)}
+                            className="flex items-center gap-2 flex-1 rounded px-2 py-1 hover:bg-gray-ui transition-colors"
+                          >
+                            <span className="w-3 h-3 rounded-sm shrink-0" style={{ background: l.color }} />
+                            <span className="text-xs text-navy flex-1 text-left truncate">{l.name}</span>
+                            {activeLabels.includes(l.id) && <span className="text-primary text-xs">&#10003;</span>}
+                          </button>
+                          <button
+                            onClick={() => setEditingLabel({ id: l.id, name: l.name, color: l.color })}
+                            className="text-gray-mid hover:text-navy opacity-0 group-hover:opacity-100 text-xs px-1 transition-opacity"
+                            title="Edit"
+                          >&#9998;</button>
+                          <button
+                            onClick={() => handleDeleteLabel(l)}
+                            className="text-gray-mid hover:text-red-500 opacity-0 group-hover:opacity-100 text-xs px-1 transition-opacity"
+                            title="Delete"
+                          >&#10005;</button>
+                        </div>
+                      ))}
+                    </div>
+                    {showLabelForm ? (
+                      <div className="mt-2 space-y-1.5">
+                        <input
+                          autoFocus
+                          value={newLabelName}
+                          onChange={(e) => setNewLabelName(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') handleCreateLabel(); if (e.key === 'Escape') setShowLabelForm(false) }}
+                          placeholder="Label name..."
+                          className="input-base h-7 text-xs w-full"
+                        />
+                        <div className="flex flex-wrap gap-1">
+                          {LABEL_COLORS.map((c) => (
+                            <button
+                              key={c}
+                              onClick={() => setNewLabelColor(c)}
+                              className="w-5 h-5 rounded transition-transform hover:scale-110"
+                              style={{ background: c, outline: c === newLabelColor ? '2px solid #1a1a2e' : 'none', outlineOffset: '1px' }}
+                            />
+                          ))}
+                        </div>
+                        <div className="flex gap-1">
+                          <button onClick={handleCreateLabel} className="btn-primary text-xs h-7 min-h-0 px-2 flex-1">Create</button>
+                          <button onClick={() => setShowLabelForm(false)} className="btn-ghost text-xs h-7 min-h-0 px-2">&#10005;</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button onClick={() => setShowLabelForm(true)} className="text-xs text-primary hover:underline mt-1.5 block">+ New label</button>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -336,14 +438,20 @@ export default function CardModal({ card, boardId, boardLabels, wsMembers, onClo
                 {cardMembers.length > 0 && (
                   <div className="flex flex-wrap gap-1 mb-2">
                     {cardMembers.map((u) => (
-                      <div key={u.id} title={u.name} className="w-7 h-7 rounded-full bg-primary text-white text-xs flex items-center justify-center font-semibold">
+                      <div key={u.id} title={u.name} className="w-7 h-7 rounded-full bg-primary text-white text-xs flex items-center justify-center font-semibold cursor-pointer hover:opacity-80" onClick={() => handleToggleMember(u)}>
                         {u.name[0]}
                       </div>
                     ))}
                   </div>
                 )}
-                <div className="space-y-0.5">
-                  {wsMembers.map(({ user }) => {
+                <input
+                  value={memberSearch}
+                  onChange={(e) => setMemberSearch(e.target.value)}
+                  placeholder="Search members..."
+                  className="input-base h-7 text-xs w-full mb-1"
+                />
+                <div className="space-y-0.5 max-h-36 overflow-y-auto">
+                  {filteredMembers.map(({ user }) => {
                     const assigned = cardMembers.some((m) => m.id === user.id)
                     return (
                       <button
@@ -357,6 +465,9 @@ export default function CardModal({ card, boardId, boardLabels, wsMembers, onClo
                       </button>
                     )
                   })}
+                  {filteredMembers.length === 0 && (
+                    <p className="text-xs text-gray-mid px-2 py-1">No members found</p>
+                  )}
                 </div>
               </div>
 
@@ -366,7 +477,7 @@ export default function CardModal({ card, boardId, boardLabels, wsMembers, onClo
                 <input
                   type="date"
                   value={dueDate}
-                  onChange={(e) => handleDueDateChange(e.target.value)}
+                  onChange={(e) => { setDueDate(e.target.value); markDirty() }}
                   className="input-base h-8 text-xs w-full"
                 />
               </div>

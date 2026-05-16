@@ -1,11 +1,11 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { getWorkspaces, createWorkspace, createBoard, renameWorkspace, deleteWorkspace, searchCards, SearchResult } from '../api/boards'
+import { getWorkspaces, createWorkspace, createBoard, renameWorkspace, deleteWorkspace, searchCards, getWorkspace, addWorkspaceMember, removeWorkspaceMember, SearchResult } from '../api/boards'
 import { logout } from '../api/auth'
 import { useAuthStore } from '../store/auth'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
-import type { Workspace } from '../types'
+import type { Workspace, WorkspaceMember } from '../types'
 
 type Confirm = { message: string; onConfirm: () => void }
 
@@ -20,6 +20,10 @@ export default function Dashboard() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
   const [showResults, setShowResults] = useState(false)
+  const [managingMembers, setManagingMembers] = useState<string | null>(null)
+  const [wsMembers, setWsMembers] = useState<Record<string, WorkspaceMember[]>>({})
+  const [inviteEmail, setInviteEmail] = useState<Record<string, string>>({})
+  const [loadingMembers, setLoadingMembers] = useState<string | null>(null)
   const searchRef = useRef<HTMLDivElement>(null)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { user, clearAuth } = useAuthStore()
@@ -65,7 +69,7 @@ export default function Dashboard() {
 
   const handleDeleteWorkspace = (wsId: string, wsName: string) => {
     setConfirm({
-      message: `Xóa workspace "${wsName}" và toàn bộ board, card bên trong?`,
+      message: `Xoa workspace "${wsName}" va toan bo board, card ben trong?`,
       onConfirm: async () => {
         try {
           await deleteWorkspace(wsId)
@@ -100,6 +104,46 @@ export default function Dashboard() {
     await logout().catch(() => {})
     clearAuth()
     navigate('/login')
+  }
+
+  const handleToggleMembers = async (wsId: string) => {
+    if (managingMembers === wsId) { setManagingMembers(null); return }
+    setManagingMembers(wsId)
+    if (wsMembers[wsId]) return
+    setLoadingMembers(wsId)
+    try {
+      const ws = await getWorkspace(wsId)
+      setWsMembers((prev) => ({ ...prev, [wsId]: ws.members ?? [] }))
+    } catch { toast.error('Failed to load members') }
+    finally { setLoadingMembers(null) }
+  }
+
+  const handleInviteMember = async (wsId: string) => {
+    const email = inviteEmail[wsId]?.trim()
+    if (!email) return
+    try {
+      await addWorkspaceMember(wsId, email)
+      const ws = await getWorkspace(wsId)
+      setWsMembers((prev) => ({ ...prev, [wsId]: ws.members ?? [] }))
+      setInviteEmail((prev) => ({ ...prev, [wsId]: '' }))
+      toast.success('Member added')
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+      toast.error(msg ?? 'Failed to add member')
+    }
+  }
+
+  const handleRemoveMember = (wsId: string, userId: string, userName: string) => {
+    setConfirm({
+      message: `Xoa "${userName}" khoi workspace?`,
+      onConfirm: async () => {
+        try {
+          await removeWorkspaceMember(wsId, userId)
+          setWsMembers((prev) => ({ ...prev, [wsId]: (prev[wsId] ?? []).filter((m) => m.userId !== userId) }))
+        } catch { toast.error('Failed to remove member') }
+        setConfirm(null)
+      },
+    })
   }
 
   return (
@@ -184,11 +228,57 @@ export default function Dashboard() {
                 >{ws.name}</span>
               )}
               <button
+                onClick={() => handleToggleMembers(ws.id)}
+                className="text-xs text-primary hover:underline px-2 py-1 rounded hover:bg-blue-pale transition-colors"
+              >Members ({ws._count?.members ?? 0})</button>
+              <button
                 onClick={() => handleDeleteWorkspace(ws.id, ws.name)}
                 className="text-gray-dark hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors text-xs opacity-50 hover:opacity-100"
                 title="Delete workspace"
               >&#128465;</button>
             </div>
+
+            {/* Member management panel */}
+            {managingMembers === ws.id && (
+              <div className="mb-4 bg-white border border-gray-border rounded-card p-4">
+                <p className="text-sm font-semibold text-navy mb-3">Workspace Members</p>
+                {loadingMembers === ws.id ? (
+                  <p className="text-xs text-gray-mid">Loading...</p>
+                ) : (
+                  <div className="space-y-2 mb-3">
+                    {(wsMembers[ws.id] ?? []).map((m) => (
+                      <div key={m.userId} className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-primary text-white text-xs flex items-center justify-center font-semibold shrink-0">{m.user.name[0]}</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-navy truncate">{m.user.name}</p>
+                          <p className="text-xs text-gray-mid truncate">{m.user.email}</p>
+                        </div>
+                        <span className="text-xs text-gray-mid bg-gray-ui px-1.5 py-0.5 rounded">{m.role}</span>
+                        <button
+                          onClick={() => handleRemoveMember(ws.id, m.userId, m.user.name)}
+                          className="text-gray-mid hover:text-red-500 text-xs px-1 transition-colors"
+                          title="Remove"
+                        >&#10005;</button>
+                      </div>
+                    ))}
+                    {(wsMembers[ws.id] ?? []).length === 0 && (
+                      <p className="text-xs text-gray-mid">No members yet.</p>
+                    )}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    value={inviteEmail[ws.id] ?? ''}
+                    onChange={(e) => setInviteEmail((prev) => ({ ...prev, [ws.id]: e.target.value }))}
+                    onKeyDown={(e) => e.key === 'Enter' && handleInviteMember(ws.id)}
+                    placeholder="Invite by email..."
+                    className="input-base h-8 text-sm flex-1"
+                  />
+                  <button onClick={() => handleInviteMember(ws.id)} className="btn-primary h-8 min-h-0 px-3 text-sm">Invite</button>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
               {(ws.boards ?? []).map((board) => (
                 <button
