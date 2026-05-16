@@ -56,6 +56,11 @@ export default function Board() {
     'list:deleted': (data) => setBoard((b) => b ? {
       ...b, lists: b.lists!.filter((l) => l.id !== (data as { id: string }).id)
     } : b),
+    'card:deleted': (data) => {
+      const deletedId = (data as { id: string }).id
+      setBoard((b) => b ? { ...b, lists: b.lists!.map((l) => ({ ...l, cards: (l.cards ?? []).filter((c) => c.id !== deletedId) })) } : b)
+      setSelectedCard((prev) => prev?.id === deletedId ? null : prev)
+    },
     'list:reordered': (data) => {
       const items = data as { id: string; position: number }[]
       setBoard((b) => b ? { ...b, lists: [...(b.lists ?? [])].sort((a, z) => {
@@ -148,6 +153,10 @@ export default function Board() {
         <CardModal
           card={selectedCard}
           onClose={() => setSelectedCard(null)}
+          onDelete={(cardId) => {
+            setSelectedCard(null)
+            setBoard((b) => b ? { ...b, lists: b.lists!.map((l) => ({ ...l, cards: (l.cards ?? []).filter((c) => c.id !== cardId) })) } : b)
+          }}
           onUpdate={(updated) => {
             setSelectedCard((prev) => prev ? { ...prev, ...updated } : prev)
             setBoard((b) => b ? { ...b, lists: b.lists!.map((l) => ({ ...l, cards: (l.cards ?? []).map((c) => c.id === selectedCard.id ? { ...c, ...updated } : c) })) } : b)

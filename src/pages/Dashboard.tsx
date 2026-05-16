@@ -4,7 +4,10 @@ import toast from 'react-hot-toast'
 import { getWorkspaces, createWorkspace, createBoard, renameWorkspace, deleteWorkspace, searchCards, SearchResult } from '../api/boards'
 import { logout } from '../api/auth'
 import { useAuthStore } from '../store/auth'
+import ConfirmDialog from '../components/ui/ConfirmDialog'
 import type { Workspace } from '../types'
+
+type Confirm = { message: string; onConfirm: () => void }
 
 export default function Dashboard() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
@@ -12,6 +15,7 @@ export default function Dashboard() {
   const [newBoardTitle, setNewBoardTitle] = useState<Record<string, string>>({})
   const [editingWs, setEditingWs] = useState<string | null>(null)
   const [editingWsName, setEditingWsName] = useState('')
+  const [confirm, setConfirm] = useState<Confirm | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
@@ -59,12 +63,17 @@ export default function Dashboard() {
     setEditingWs(null)
   }
 
-  const handleDeleteWorkspace = async (wsId: string, wsName: string) => {
-    if (!window.confirm(`Delete workspace "${wsName}" and all its boards and cards?`)) return
-    try {
-      await deleteWorkspace(wsId)
-      setWorkspaces((prev) => prev.filter((w) => w.id !== wsId))
-    } catch { toast.error('Failed to delete workspace') }
+  const handleDeleteWorkspace = (wsId: string, wsName: string) => {
+    setConfirm({
+      message: `Xóa workspace "${wsName}" và toàn bộ board, card bên trong?`,
+      onConfirm: async () => {
+        try {
+          await deleteWorkspace(wsId)
+          setWorkspaces((prev) => prev.filter((w) => w.id !== wsId))
+        } catch { toast.error('Failed to delete workspace') }
+        setConfirm(null)
+      },
+    })
   }
 
   const handleCreateWorkspace = async () => {
@@ -200,6 +209,14 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
+
+      {confirm && (
+        <ConfirmDialog
+          message={confirm.message}
+          onConfirm={confirm.onConfirm}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
     </div>
   )
 }

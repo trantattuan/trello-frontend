@@ -11,6 +11,8 @@ export const moveCard = (id: string, listId: string, position: number) =>
 
 export const deleteCard = (id: string) => client.delete(`/cards/${id}`)
 
+export const deleteChecklist = (id: string) => client.delete(`/checklists/${id}`)
+
 export const getComments = (cardId: string) =>
   client.get(`/cards/${cardId}/comments`).then((r) => r.data)
 

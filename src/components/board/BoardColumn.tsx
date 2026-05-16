@@ -3,8 +3,11 @@ import { Droppable } from '@hello-pangea/dnd'
 import CardItem from './CardItem'
 import { createCard } from '../../api/cards'
 import { renameList, deleteList } from '../../api/boards'
+import ConfirmDialog from '../ui/ConfirmDialog'
 import type { List, Card } from '../../types'
 import toast from 'react-hot-toast'
+
+type Confirm = { message: string; onConfirm: () => void }
 
 interface Props {
   list: List
@@ -17,6 +20,7 @@ export default function BoardColumn({ list, onCardClick }: Props) {
   const [title, setTitle] = useState('')
   const [editingTitle, setEditingTitle] = useState(false)
   const [listTitle, setListTitle] = useState(list.title)
+  const [confirm, setConfirm] = useState<Confirm | null>(null)
   const titleInputRef = useRef<HTMLInputElement>(null)
 
   const handleRenameList = async () => {
@@ -32,11 +36,16 @@ export default function BoardColumn({ list, onCardClick }: Props) {
     setEditingTitle(false)
   }
 
-  const handleDeleteList = async () => {
-    if (!window.confirm(`Delete list "${list.title}" and all its cards?`)) return
-    try {
-      await deleteList(list.id)
-    } catch { toast.error('Failed to delete list') }
+  const handleDeleteList = () => {
+    setConfirm({
+      message: `Xóa list "${list.title}" và toàn bộ card bên trong?`,
+      onConfirm: async () => {
+        try {
+          await deleteList(list.id)
+        } catch { toast.error('Failed to delete list') }
+        setConfirm(null)
+      },
+    })
   }
 
   const handleAdd = async () => {
@@ -49,6 +58,7 @@ export default function BoardColumn({ list, onCardClick }: Props) {
   }
 
   return (
+    <>
     <div className="w-64 shrink-0 flex flex-col">
       <div className="bg-gray-ui rounded-card p-2">
         <div className="flex items-center gap-1 mb-1">
@@ -112,5 +122,14 @@ export default function BoardColumn({ list, onCardClick }: Props) {
         )}
       </div>
     </div>
+
+    {confirm && (
+      <ConfirmDialog
+        message={confirm.message}
+        onConfirm={confirm.onConfirm}
+        onCancel={() => setConfirm(null)}
+      />
+    )}
+    </>
   )
 }
