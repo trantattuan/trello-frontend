@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Droppable } from '@hello-pangea/dnd'
 import CardItem from './CardItem'
 import { createCard } from '../../api/cards'
+import { renameList } from '../../api/boards'
 import type { List, Card } from '../../types'
 import toast from 'react-hot-toast'
 
@@ -14,6 +15,22 @@ interface Props {
 export default function BoardColumn({ list, onCardClick, onCardAdded }: Props) {
   const [adding, setAdding] = useState(false)
   const [title, setTitle] = useState('')
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [listTitle, setListTitle] = useState(list.title)
+  const titleInputRef = useRef<HTMLInputElement>(null)
+
+  const handleRenameList = async () => {
+    const trimmed = listTitle.trim()
+    if (!trimmed) { setListTitle(list.title); setEditingTitle(false); return }
+    if (trimmed === list.title) { setEditingTitle(false); return }
+    try {
+      await renameList(list.id, trimmed)
+    } catch {
+      toast.error('Failed to rename list')
+      setListTitle(list.title)
+    }
+    setEditingTitle(false)
+  }
 
   const handleAdd = async () => {
     if (!title.trim()) { setAdding(false); return }
@@ -28,7 +45,22 @@ export default function BoardColumn({ list, onCardClick, onCardAdded }: Props) {
   return (
     <div className="w-64 shrink-0 flex flex-col">
       <div className="bg-gray-ui rounded-card p-2">
-        <h3 className="text-sm font-semibold text-navy px-2 py-1 mb-1">{list.title}</h3>
+        {editingTitle ? (
+          <input
+            ref={titleInputRef}
+            autoFocus
+            value={listTitle}
+            onChange={(e) => setListTitle(e.target.value)}
+            onBlur={handleRenameList}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleRenameList() } if (e.key === 'Escape') { setListTitle(list.title); setEditingTitle(false) } }}
+            className="text-sm font-semibold text-navy px-2 py-1 mb-1 w-full rounded border border-primary outline-none bg-white"
+          />
+        ) : (
+          <h3
+            className="text-sm font-semibold text-navy px-2 py-1 mb-1 cursor-pointer hover:bg-black/5 rounded"
+            onClick={() => { setListTitle(list.title); setEditingTitle(true) }}
+          >{list.title}</h3>
+        )}
         <Droppable droppableId={list.id}>
           {(provided, snapshot) => (
             <div

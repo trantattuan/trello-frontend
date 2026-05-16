@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { getWorkspaces, createWorkspace, createBoard } from '../api/boards'
+import { getWorkspaces, createWorkspace, createBoard, renameWorkspace } from '../api/boards'
 import { logout } from '../api/auth'
 import { useAuthStore } from '../store/auth'
 import type { Workspace } from '../types'
@@ -10,8 +10,21 @@ export default function Dashboard() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [newWsName, setNewWsName] = useState('')
   const [newBoardTitle, setNewBoardTitle] = useState<Record<string, string>>({})
+  const [editingWs, setEditingWs] = useState<string | null>(null)
+  const [editingWsName, setEditingWsName] = useState('')
   const { user, clearAuth } = useAuthStore()
   const navigate = useNavigate()
+
+  const handleRenameWorkspace = async (wsId: string) => {
+    const trimmed = editingWsName.trim()
+    const ws = workspaces.find((w) => w.id === wsId)
+    if (!trimmed || trimmed === ws?.name) { setEditingWs(null); return }
+    try {
+      await renameWorkspace(wsId, trimmed)
+      setWorkspaces((prev) => prev.map((w) => w.id === wsId ? { ...w, name: trimmed } : w))
+    } catch { toast.error('Failed to rename workspace') }
+    setEditingWs(null)
+  }
 
   useEffect(() => {
     getWorkspaces().then(setWorkspaces).catch(() => toast.error('Failed to load workspaces'))
@@ -73,7 +86,21 @@ export default function Dashboard() {
               <span className="w-6 h-6 bg-primary rounded text-white text-xs flex items-center justify-center font-bold">
                 {ws.name[0]}
               </span>
-              {ws.name}
+              {editingWs === ws.id ? (
+                <input
+                  autoFocus
+                  value={editingWsName}
+                  onChange={(e) => setEditingWsName(e.target.value)}
+                  onBlur={() => handleRenameWorkspace(ws.id)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleRenameWorkspace(ws.id); if (e.key === 'Escape') setEditingWs(null) }}
+                  className="text-base font-semibold text-navy-2 border-b border-primary outline-none bg-transparent"
+                />
+              ) : (
+                <span
+                  className="cursor-pointer hover:underline"
+                  onClick={() => { setEditingWsName(ws.name); setEditingWs(ws.id) }}
+                >{ws.name}</span>
+              )}
             </h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
               {(ws.boards ?? []).map((board) => (

@@ -18,8 +18,14 @@ export const getBoard = (id: string) =>
 export const getBoardStats = (id: string) =>
   client.get<BoardStats>(`/boards/${id}/stats`).then((r) => r.data)
 
+export const renameWorkspace = (id: string, name: string) =>
+  client.put(`/workspaces/${id}`, { name }).then((r) => r.data)
+
 export const createList = (boardId: string, title: string) =>
   client.post('/lists', { boardId, title }).then((r) => r.data)
+
+export const renameList = (id: string, title: string) =>
+  client.put(`/lists/${id}`, { title }).then((r) => r.data)
 
 export const reorderLists = (boardId: string, lists: { id: string; position: number }[]) =>
   client.put('/lists/reorder', { boardId, lists })

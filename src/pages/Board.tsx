@@ -23,9 +23,14 @@ export default function Board() {
   }, [id])
 
   useSocket(id ?? null, {
-    'card:created': (card) => setBoard((b) => b ? {
-      ...b, lists: b.lists!.map((l) => l.id === (card as Card).listId ? { ...l, cards: [...(l.cards ?? []), card as Card] } : l)
-    } : b),
+    'card:created': (card) => setBoard((b) => {
+      if (!b) return b
+      return { ...b, lists: b.lists!.map((l) => {
+        if (l.id !== (card as Card).listId) return l
+        if ((l.cards ?? []).some((c) => c.id === (card as Card).id)) return l
+        return { ...l, cards: [...(l.cards ?? []), card as Card] }
+      })}
+    }),
     'card:moved': (data) => {
       const { id: cardId, listId, position } = data as { id: string; listId: string; position: number }
       setBoard((b) => {
@@ -42,6 +47,9 @@ export default function Board() {
       ...b, lists: b.lists!.map((l) => ({ ...l, cards: (l.cards ?? []).map((c) => c.id === (card as Card).id ? { ...c, ...(card as Card) } : c) }))
     } : b),
     'list:created': (list) => setBoard((b) => b ? { ...b, lists: [...(b.lists ?? []), { ...(list as List), cards: [] }] } : b),
+    'list:updated': (list) => setBoard((b) => b ? {
+      ...b, lists: b.lists!.map((l) => l.id === (list as List).id ? { ...l, title: (list as List).title } : l)
+    } : b),
     'list:reordered': (data) => {
       const items = data as { id: string; position: number }[]
       setBoard((b) => b ? { ...b, lists: [...(b.lists ?? [])].sort((a, z) => {
