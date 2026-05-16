@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import toast from 'react-hot-toast'
-import { updateCard, getComments, addComment, createChecklist, addChecklistItem, updateChecklistItem, uploadAttachment, getAttachmentUrl } from '../../api/cards'
+import { updateCard, getComments, addComment, createChecklist, addChecklistItem, updateChecklistItem, uploadAttachment } from '../../api/cards'
 import type { Card, Comment, Checklist } from '../../types'
 
 interface Props {
