@@ -38,6 +38,7 @@ export interface SearchResult {
   id: string
   title: string
   description?: string | null
+  labels: { id: string; name: string; color: string }[]
   list: { id: string; title: string }
   board: { id: string; title: string; workspaceId: string }
 }

@@ -129,6 +129,13 @@ export default function Dashboard() {
                   >
                     <div className="text-sm font-semibold text-navy truncate">{r.title}</div>
                     <div className="text-xs text-gray-dark mt-0.5">{r.board.title} &rsaquo; {r.list.title}</div>
+                    {r.labels.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {r.labels.map((l) => (
+                          <span key={l.id} className="px-1.5 py-0.5 rounded text-white text-xs font-semibold" style={{ background: l.color }}>{l.name}</span>
+                        ))}
+                      </div>
+                    )}
                   </button>
                 ))
               )}

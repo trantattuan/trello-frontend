@@ -45,6 +45,7 @@ export interface Card {
   description?: string | null
   position: number
   dueDate?: string | null
+  createdAt?: string
   coverColor?: string | null
   members?: { user: User }[]
   labels?: { label: Label }[]

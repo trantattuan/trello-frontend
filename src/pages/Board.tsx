@@ -2,18 +2,19 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { DragDropContext, DropResult } from '@hello-pangea/dnd'
 import toast from 'react-hot-toast'
-import { getBoard, createList } from '../api/boards'
+import { getBoard, getWorkspace, createList } from '../api/boards'
 import { moveCard } from '../api/cards'
 import { useSocket } from '../hooks/useSocket'
 import BoardColumn from '../components/board/BoardColumn'
 import CardModal from '../components/card/CardModal'
-import type { Board as BoardType, Card, List } from '../types'
+import type { Board as BoardType, Card, List, WorkspaceMember } from '../types'
 
 export default function Board() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [board, setBoard] = useState<BoardType | null>(null)
+  const [wsMembers, setWsMembers] = useState<WorkspaceMember[]>([])
   const [selectedCard, setSelectedCard] = useState<Card | null>(null)
   const [addingList, setAddingList] = useState(false)
   const [newListTitle, setNewListTitle] = useState('')
@@ -22,6 +23,7 @@ export default function Board() {
     if (!id) return
     getBoard(id).then((b) => {
       setBoard(b)
+      getWorkspace(b.workspaceId).then((ws) => setWsMembers(ws.members ?? []))
       const cardId = searchParams.get('card')
       if (cardId) {
         const card = (b.lists ?? []).flatMap((l) => l.cards ?? []).find((c) => c.id === cardId)
@@ -152,6 +154,9 @@ export default function Board() {
       {selectedCard && (
         <CardModal
           card={selectedCard}
+          boardId={board.id}
+          boardLabels={board.labels ?? []}
+          wsMembers={wsMembers}
           onClose={() => setSelectedCard(null)}
           onDelete={(cardId) => {
             setSelectedCard(null)
