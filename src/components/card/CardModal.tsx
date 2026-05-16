@@ -56,9 +56,11 @@ export default function CardModal({ card, boardId, boardLabels, wsMembers, onClo
       const updates: Partial<Card> = {}
       if (title.trim() !== card.title) updates.title = title.trim()
       if (description !== (card.description ?? '')) updates.description = description
-      const newDue = dueDate || null
-      const oldDue = card.dueDate ? card.dueDate.slice(0, 10) : null
-      if (newDue !== oldDue) updates.dueDate = newDue
+      const newDueDateStr = dueDate || null
+      const oldDueDateStr = card.dueDate ? card.dueDate.slice(0, 10) : null
+      if (newDueDateStr !== oldDueDateStr) {
+        updates.dueDate = newDueDateStr ? new Date(newDueDateStr + 'T00:00:00').toISOString() : null
+      }
 
       if (Object.keys(updates).length > 0) {
         await updateCard(card.id, updates as Record<string, unknown>)
