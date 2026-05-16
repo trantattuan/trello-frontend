@@ -6,6 +6,7 @@ import { getBoard, getWorkspace, createList, updateBoard, deleteBoard } from '..
 import { moveCard } from '../api/cards'
 import { useSocket } from '../hooks/useSocket'
 import BoardColumn from '../components/board/BoardColumn'
+import BoardTimeline from '../components/board/BoardTimeline'
 import CardModal from '../components/card/CardModal'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import type { Board as BoardType, Card, List, WorkspaceMember } from '../types'
@@ -24,6 +25,7 @@ export default function Board() {
   const [editingTitle, setEditingTitle] = useState(false)
   const [boardTitle, setBoardTitle] = useState('')
   const [confirm, setConfirm] = useState<Confirm | null>(null)
+  const [view, setView] = useState<'board' | 'timeline'>('board')
 
   useEffect(() => {
     if (!id) return
@@ -157,6 +159,16 @@ export default function Board() {
             onClick={() => { setBoardTitle(board.title); setEditingTitle(true) }}
           >{board.title}</h1>
         )}
+        <div className="flex items-center gap-1 ml-4 bg-black/20 rounded p-0.5">
+          <button
+            onClick={() => setView('board')}
+            className={`text-sm px-3 py-1 rounded transition-colors ${view === 'board' ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'}`}
+          >Board</button>
+          <button
+            onClick={() => setView('timeline')}
+            className={`text-sm px-3 py-1 rounded transition-colors ${view === 'timeline' ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'}`}
+          >Timeline</button>
+        </div>
         <div className="ml-auto">
           <button
             onClick={handleDeleteBoard}
@@ -165,41 +177,48 @@ export default function Board() {
         </div>
       </nav>
 
-      <DragDropContext onDragEnd={onDragEnd}>
-        <div className="flex gap-4 p-6 overflow-x-auto flex-1 items-start">
-          {(board.lists ?? []).sort((a, b) => a.position - b.position).map((list) => (
-            <BoardColumn
-              key={list.id}
-              list={list}
-              onCardClick={(card) => setSelectedCard({ ...card, checklists: card.checklists ?? [] })}
-              onCardAdded={(card) => setBoard((b) => b ? { ...b, lists: b.lists!.map((l) => l.id === list.id ? { ...l, cards: [...(l.cards ?? []), card] } : l) } : b)}
-            />
-          ))}
+      {view === 'timeline' ? (
+        <BoardTimeline
+          board={board}
+          onCardClick={(card) => setSelectedCard(card)}
+        />
+      ) : (
+        <DragDropContext onDragEnd={onDragEnd}>
+          <div className="flex gap-4 p-6 overflow-x-auto flex-1 items-start">
+            {(board.lists ?? []).sort((a, b) => a.position - b.position).map((list) => (
+              <BoardColumn
+                key={list.id}
+                list={list}
+                onCardClick={(card) => setSelectedCard({ ...card, checklists: card.checklists ?? [] })}
+                onCardAdded={(card) => setBoard((b) => b ? { ...b, lists: b.lists!.map((l) => l.id === list.id ? { ...l, cards: [...(l.cards ?? []), card] } : l) } : b)}
+              />
+            ))}
 
-          <div className="w-64 shrink-0">
-            {addingList ? (
-              <div className="bg-gray-ui rounded-card p-2 space-y-2">
-                <input
-                  autoFocus
-                  value={newListTitle}
-                  onChange={(e) => setNewListTitle(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleAddList(); if (e.key === 'Escape') setAddingList(false) }}
-                  placeholder="List title..."
-                  className="input-base h-9 text-sm w-full"
-                />
-                <div className="flex gap-2">
-                  <button onClick={handleAddList} className="btn-primary text-sm h-8 min-h-0 px-3">Add</button>
-                  <button onClick={() => { setAddingList(false); setNewListTitle('') }} className="btn-ghost text-sm h-8 min-h-0 px-3">Cancel</button>
+            <div className="w-64 shrink-0">
+              {addingList ? (
+                <div className="bg-gray-ui rounded-card p-2 space-y-2">
+                  <input
+                    autoFocus
+                    value={newListTitle}
+                    onChange={(e) => setNewListTitle(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleAddList(); if (e.key === 'Escape') setAddingList(false) }}
+                    placeholder="List title..."
+                    className="input-base h-9 text-sm w-full"
+                  />
+                  <div className="flex gap-2">
+                    <button onClick={handleAddList} className="btn-primary text-sm h-8 min-h-0 px-3">Add</button>
+                    <button onClick={() => { setAddingList(false); setNewListTitle('') }} className="btn-ghost text-sm h-8 min-h-0 px-3">Cancel</button>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <button onClick={() => setAddingList(true)} className="w-full text-left text-white/90 hover:text-white hover:bg-white/10 rounded-card p-3 text-sm font-semibold transition-colors backdrop-blur-sm bg-black/20">
-                + Add another list
-              </button>
-            )}
+              ) : (
+                <button onClick={() => setAddingList(true)} className="w-full text-left text-white/90 hover:text-white hover:bg-white/10 rounded-card p-3 text-sm font-semibold transition-colors backdrop-blur-sm bg-black/20">
+                  + Add another list
+                </button>
+              )}
+            </div>
           </div>
-        </div>
-      </DragDropContext>
+        </DragDropContext>
+      )}
 
       {selectedCard && (
         <CardModal
