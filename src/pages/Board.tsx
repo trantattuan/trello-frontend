@@ -7,6 +7,7 @@ import { moveCard } from '../api/cards'
 import { useSocket } from '../hooks/useSocket'
 import BoardColumn from '../components/board/BoardColumn'
 import BoardTimeline from '../components/board/BoardTimeline'
+import AutomationPanel from '../components/automation/AutomationPanel'
 import CardModal from '../components/card/CardModal'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import type { Board as BoardType, Card, List, WorkspaceMember } from '../types'
@@ -26,6 +27,7 @@ export default function Board() {
   const [boardTitle, setBoardTitle] = useState('')
   const [confirm, setConfirm] = useState<Confirm | null>(null)
   const [view, setView] = useState<'board' | 'timeline'>('board')
+  const [showAutomation, setShowAutomation] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -169,7 +171,11 @@ export default function Board() {
             className={`text-sm px-3 py-1 rounded transition-colors ${view === 'timeline' ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'}`}
           >Timeline</button>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => setShowAutomation(true)}
+            className="text-white/70 hover:text-white hover:bg-white/10 text-sm px-3 py-1 rounded transition-colors"
+          >&#9889; Automation</button>
           <button
             onClick={handleDeleteBoard}
             className="text-red-300 hover:text-red-100 hover:bg-red-500/30 text-sm px-3 py-1 rounded transition-colors"
@@ -244,6 +250,16 @@ export default function Board() {
           message={confirm.message}
           onConfirm={confirm.onConfirm}
           onCancel={() => setConfirm(null)}
+        />
+      )}
+
+      {showAutomation && (
+        <AutomationPanel
+          boardId={board.id}
+          lists={board.lists ?? []}
+          labels={board.labels ?? []}
+          wsMembers={wsMembers}
+          onClose={() => setShowAutomation(false)}
         />
       )}
     </div>

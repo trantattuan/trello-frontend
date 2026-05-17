@@ -92,6 +92,42 @@ export interface Attachment {
   user: User
 }
 
+export type TriggerType = 'card_moved' | 'card_created' | 'checklist_completed'
+export type ActionType = 'move_card' | 'add_label' | 'remove_label' | 'assign_member' | 'set_due_date'
+
+export interface TriggerConfig {
+  type: TriggerType
+  toListId?: string
+  listId?: string
+}
+
+export interface ActionConfig {
+  type: ActionType
+  toListId?: string
+  labelId?: string
+  userId?: string
+  daysFromNow?: number
+}
+
+export interface Rule {
+  id: string
+  boardId: string
+  name: string
+  isActive: boolean
+  trigger: TriggerConfig
+  actions: ActionConfig[]
+  createdAt: string
+}
+
+export interface RuleLog {
+  id: string
+  ruleId: string
+  cardId?: string | null
+  status: string
+  detail?: string | null
+  createdAt: string
+}
+
 export interface BoardStats {
   byList: { id: string; title: string; count: number }[]
   byMember: { name: string; count: number }[]
