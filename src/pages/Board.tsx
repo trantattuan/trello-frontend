@@ -44,9 +44,14 @@ export default function Board() {
   }, [id])
 
   useSocket(id ?? null, {
-    'card:created': (card) => setBoard((b) => b ? {
-      ...b, lists: b.lists!.map((l) => l.id === (card as Card).listId ? { ...l, cards: [...(l.cards ?? []), card as Card] } : l)
-    } : b),
+    'card:created': (card) => setBoard((b) => {
+      if (!b) return b
+      const c = card as Card
+      const list = b.lists!.find((l) => l.id === c.listId)
+      if (!list) return b
+      if ((list.cards ?? []).some((existing) => existing.id === c.id)) return b
+      return { ...b, lists: b.lists!.map((l) => l.id === c.listId ? { ...l, cards: [...(l.cards ?? []), c] } : l) }
+    }),
     'card:moved': (data) => {
       const { id: cardId, listId, position } = data as { id: string; listId: string; position: number }
       setBoard((b) => {
