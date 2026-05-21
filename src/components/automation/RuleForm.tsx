@@ -51,7 +51,7 @@ export default function RuleForm({ lists, labels, wsMembers, initial, onSave, on
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g. Move to Done when checklist complete"
-          className="input-base h-9 w-full text-sm"
+          className="compact-select"
         />
       </div>
 
@@ -61,7 +61,7 @@ export default function RuleForm({ lists, labels, wsMembers, initial, onSave, on
         <select
           value={trigger.type}
           onChange={(e) => setTriggerType(e.target.value as TriggerConfig['type'])}
-          className="input-base h-9 w-full text-sm mb-2"
+          className="compact-select mb-2"
         >
           {Object.entries(TRIGGER_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
@@ -69,7 +69,7 @@ export default function RuleForm({ lists, labels, wsMembers, initial, onSave, on
           <select
             value={trigger.toListId ?? ''}
             onChange={(e) => setTrigger({ ...trigger, toListId: e.target.value || undefined })}
-            className="input-base h-9 w-full text-sm"
+            className="compact-select"
           >
             <option value="">Any list</option>
             {lists.map((l) => <option key={l.id} value={l.id}>{l.title}</option>)}
@@ -79,7 +79,7 @@ export default function RuleForm({ lists, labels, wsMembers, initial, onSave, on
           <select
             value={trigger.listId ?? ''}
             onChange={(e) => setTrigger({ ...trigger, listId: e.target.value || undefined })}
-            className="input-base h-9 w-full text-sm"
+            className="compact-select"
           >
             <option value="">Any list</option>
             {lists.map((l) => <option key={l.id} value={l.id}>{l.title}</option>)}
@@ -97,7 +97,7 @@ export default function RuleForm({ lists, labels, wsMembers, initial, onSave, on
                 <select
                   value={action.type}
                   onChange={(e) => updateAction(i, { type: e.target.value as ActionConfig['type'], toListId: undefined, labelId: undefined, userId: undefined, daysFromNow: undefined })}
-                  className="input-base h-8 text-sm flex-1"
+                  className="compact-select flex-1"
                 >
                   {Object.entries(ACTION_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
@@ -109,7 +109,7 @@ export default function RuleForm({ lists, labels, wsMembers, initial, onSave, on
                 <select
                   value={action.toListId ?? ''}
                   onChange={(e) => updateAction(i, { toListId: e.target.value })}
-                  className="input-base h-8 text-sm w-full"
+                  className="compact-select"
                 >
                   <option value="">Select list...</option>
                   {lists.map((l) => <option key={l.id} value={l.id}>{l.title}</option>)}
@@ -119,7 +119,7 @@ export default function RuleForm({ lists, labels, wsMembers, initial, onSave, on
                 <select
                   value={action.labelId ?? ''}
                   onChange={(e) => updateAction(i, { labelId: e.target.value })}
-                  className="input-base h-8 text-sm w-full"
+                  className="compact-select"
                 >
                   <option value="">Select label...</option>
                   {labels.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
@@ -129,7 +129,7 @@ export default function RuleForm({ lists, labels, wsMembers, initial, onSave, on
                 <select
                   value={action.userId ?? ''}
                   onChange={(e) => updateAction(i, { userId: e.target.value })}
-                  className="input-base h-8 text-sm w-full"
+                  className="compact-select"
                 >
                   <option value="">Select member...</option>
                   {wsMembers.map((m) => <option key={m.userId} value={m.userId}>{m.user.name}</option>)}
@@ -143,7 +143,7 @@ export default function RuleForm({ lists, labels, wsMembers, initial, onSave, on
                     value={action.daysFromNow ?? ''}
                     onChange={(e) => updateAction(i, { daysFromNow: parseInt(e.target.value) || 0 })}
                     placeholder="7"
-                    className="input-base h-8 text-sm w-20"
+                    className="compact-select w-20"
                   />
                   <span className="text-xs text-gray-dark">days from now</span>
                 </div>
