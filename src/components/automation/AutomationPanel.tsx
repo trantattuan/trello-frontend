@@ -169,10 +169,10 @@ export default function AutomationPanel({ boardId, lists, labels, wsMembers, onC
                       {/* Toggle */}
                       <button
                         onClick={() => handleToggle(rule)}
-                        className={`mt-0.5 w-8 h-5 rounded-full shrink-0 transition-colors relative ${rule.isActive ? 'bg-primary' : 'bg-gray-mid'}`}
+                        className={`mt-0.5 w-8 h-5 rounded-full shrink-0 transition-colors relative overflow-hidden ${rule.isActive ? 'bg-primary' : 'bg-gray-mid'}`}
                         title={rule.isActive ? 'Active — click to disable' : 'Inactive — click to enable'}
                       >
-                        <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${rule.isActive ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                        <span className={`absolute left-0 top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${rule.isActive ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
                       </button>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-navy truncate">{rule.name}</p>
