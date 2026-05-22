@@ -19,9 +19,9 @@ export default function BoardTable({ board, onCardClick, onCardUpdate }: Props) 
 
   const [filterLists, setFilterLists] = useState<string[]>([])
   const [filterLabels, setFilterLabels] = useState<string[]>([])
-  const [filterMembers, setFilterMembers] = useState<string[]>([])
   const [filterDue, setFilterDue] = useState<'all' | 'overdue' | 'this_week' | 'none'>('all')
   const [sortBy, setSortBy] = useState<'list' | 'title' | 'dueDate' | 'created'>('list')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [editingCell, setEditingCell] = useState<{ cardId: string; field: 'title' | 'dueDate' } | null>(null)
   const [editValue, setEditValue] = useState('')
 
@@ -35,7 +35,6 @@ export default function BoardTable({ board, onCardClick, onCardUpdate }: Props) 
   const filtered = allCards.filter((card) => {
     if (filterLists.length > 0 && !filterLists.includes(card.listId)) return false
     if (filterLabels.length > 0 && !card.labels?.some((l) => filterLabels.includes(l.label.id))) return false
-    if (filterMembers.length > 0 && !card.members?.some((m) => filterMembers.includes(m.user.id))) return false
     if (filterDue === 'overdue') {
       if (!card.dueDate || new Date(card.dueDate) >= now) return false
     } else if (filterDue === 'this_week') {
@@ -49,26 +48,32 @@ export default function BoardTable({ board, onCardClick, onCardUpdate }: Props) 
   })
 
   const sorted = [...filtered].sort((a, b) => {
-    if (sortBy === 'title') return a.title.localeCompare(b.title)
-    if (sortBy === 'dueDate') {
-      if (!a.dueDate && !b.dueDate) return 0
-      if (!a.dueDate) return 1
-      if (!b.dueDate) return -1
-      return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+    let cmp = 0
+    if (sortBy === 'title') cmp = a.title.localeCompare(b.title)
+    else if (sortBy === 'dueDate') {
+      if (!a.dueDate && !b.dueDate) cmp = 0
+      else if (!a.dueDate) cmp = 1
+      else if (!b.dueDate) cmp = -1
+      else cmp = new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+    } else if (sortBy === 'created') {
+      if (!a.createdAt && !b.createdAt) cmp = 0
+      else if (!a.createdAt) cmp = 1
+      else if (!b.createdAt) cmp = -1
+      else cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    } else {
+      const lDiff = a._list.position - b._list.position
+      cmp = lDiff !== 0 ? lDiff : a.position - b.position
     }
-    if (sortBy === 'created') {
-      if (!a.createdAt && !b.createdAt) return 0
-      if (!a.createdAt) return 1
-      if (!b.createdAt) return -1
-      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    }
-    // default: sort by list position then card position
-    const lDiff = a._list.position - b._list.position
-    return lDiff !== 0 ? lDiff : a.position - b.position
+    return sortDir === 'asc' ? cmp : -cmp
   })
 
   const toggleFilter = (arr: string[], val: string, set: (v: string[]) => void) => {
     set(arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val])
+  }
+
+  const handleSort = (field: typeof sortBy) => {
+    if (sortBy === field) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(field); setSortDir('asc') }
   }
 
   const startEdit = (card: CardRow, field: 'title' | 'dueDate') => {
@@ -113,11 +118,15 @@ export default function BoardTable({ board, onCardClick, onCardUpdate }: Props) 
   }
 
   const dueBadge = (dueDate: string | null | undefined) => {
-    if (!dueDate) return null
+    if (!dueDate) return <span className="text-gray-300">·</span>
     const d = new Date(dueDate)
     const isOverdue = d < now
     const isSoon = d >= now && d <= weekLater
-    const cls = isOverdue ? 'text-red-400 bg-red-400/10' : isSoon ? 'text-orange-400 bg-orange-400/10' : 'text-gray-400 bg-gray-400/10'
+    const cls = isOverdue
+      ? 'text-red-600 bg-red-50 border border-red-200'
+      : isSoon
+      ? 'text-orange-600 bg-orange-50 border border-orange-200'
+      : 'text-gray-600 bg-gray-100 border border-gray-200'
     return (
       <span className={`text-xs px-1.5 py-0.5 rounded font-mono ${cls}`}>
         {d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
@@ -126,124 +135,144 @@ export default function BoardTable({ board, onCardClick, onCardUpdate }: Props) 
   }
 
   const checklistProgress = (card: Card) => {
-    if (!card.checklists?.length) return null
+    if (!card.checklists?.length) return <span className="text-gray-300">·</span>
     const total = card.checklists.reduce((s, cl) => s + cl.items.length, 0)
     const done = card.checklists.reduce((s, cl) => s + cl.items.filter((i) => i.isDone).length, 0)
-    if (total === 0) return null
+    if (total === 0) return <span className="text-gray-300">·</span>
     const pct = Math.round((done / total) * 100)
     return (
-      <div className="flex items-center gap-1.5 min-w-[80px]">
-        <div className="flex-1 h-1.5 bg-gray-600 rounded-full overflow-hidden">
-          <div className={`h-full rounded-full ${pct === 100 ? 'bg-green-500' : 'bg-blue-400'}`} style={{ width: `${pct}%` }} />
+      <div className="flex items-center gap-1.5 min-w-[72px]">
+        <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+          <div className={`h-full rounded-full ${pct === 100 ? 'bg-green-500' : 'bg-blue-500'}`} style={{ width: `${pct}%` }} />
         </div>
-        <span className="text-xs text-gray-400 tabular-nums">{done}/{total}</span>
+        <span className="text-xs text-gray-500 tabular-nums">{done}/{total}</span>
       </div>
     )
   }
 
-  const SortBtn = ({ field, label }: { field: typeof sortBy; label: string }) => (
+  const SortHeader = ({ field, label, className = '' }: { field: typeof sortBy; label: string; className?: string }) => (
     <button
-      onClick={() => setSortBy(field)}
-      className={`flex items-center gap-1 text-xs font-medium transition-colors ${sortBy === field ? 'text-white' : 'text-gray-400 hover:text-gray-200'}`}
+      onClick={() => handleSort(field)}
+      className={`flex items-center gap-1 text-xs font-semibold text-gray-600 hover:text-gray-900 transition-colors ${className}`}
     >
       {label}
-      {sortBy === field && <span className="text-blue-400">↑</span>}
+      {sortBy === field
+        ? <span className="text-blue-500">{sortDir === 'asc' ? '↑' : '↓'}</span>
+        : <span className="text-gray-300">↕</span>
+      }
     </button>
   )
 
-  const activeFilters = filterLists.length + filterLabels.length + filterMembers.length + (filterDue !== 'all' ? 1 : 0)
+  const activeFilters = filterLists.length + filterLabels.length + (filterDue !== 'all' ? 1 : 0)
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-black/10">
+    <div className="flex-1 flex flex-col overflow-hidden bg-white">
       {/* Filter bar */}
-      <div className="flex items-center gap-3 px-6 py-3 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-wrap">
-        {/* List filter */}
+      <div className="flex items-center gap-3 px-6 py-3 bg-gray-50 border-b border-gray-200 flex-wrap">
         <div className="flex items-center gap-1.5">
-          <span className="text-xs text-gray-400 font-medium">List:</span>
+          <span className="text-xs text-gray-500 font-medium">List:</span>
           {lists.map((list) => (
             <button
               key={list.id}
               onClick={() => toggleFilter(filterLists, list.id, setFilterLists)}
-              className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${filterLists.includes(list.id) ? 'bg-blue-500/30 border-blue-400 text-blue-200' : 'border-white/20 text-gray-400 hover:border-white/40 hover:text-gray-200'}`}
+              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                filterLists.includes(list.id)
+                  ? 'bg-blue-50 border-blue-400 text-blue-700'
+                  : 'bg-white border-gray-300 text-gray-600 hover:border-gray-400 hover:text-gray-800'
+              }`}
             >
               {list.title}
             </button>
           ))}
         </div>
 
-        <div className="w-px h-4 bg-white/10" />
-
-        {/* Label filter */}
         {labels.length > 0 && (
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-gray-400 font-medium">Label:</span>
-            {labels.map((lbl) => (
-              <button
-                key={lbl.id}
-                onClick={() => toggleFilter(filterLabels, lbl.id, setFilterLabels)}
-                title={lbl.name}
-                className={`w-4 h-4 rounded-full border-2 transition-all ${filterLabels.includes(lbl.id) ? 'border-white scale-125' : 'border-transparent hover:border-white/50'}`}
-                style={{ backgroundColor: lbl.color }}
-              />
-            ))}
-          </div>
+          <>
+            <div className="w-px h-4 bg-gray-200" />
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-gray-500 font-medium">Label:</span>
+              {labels.map((lbl) => (
+                <button
+                  key={lbl.id}
+                  onClick={() => toggleFilter(filterLabels, lbl.id, setFilterLabels)}
+                  title={lbl.name}
+                  className={`w-5 h-5 rounded-full border-2 transition-all ${
+                    filterLabels.includes(lbl.id) ? 'border-gray-800 scale-110' : 'border-transparent hover:border-gray-400'
+                  }`}
+                  style={{ backgroundColor: lbl.color }}
+                />
+              ))}
+            </div>
+          </>
         )}
 
-        {labels.length > 0 && <div className="w-px h-4 bg-white/10" />}
+        <div className="w-px h-4 bg-gray-200" />
 
-        {/* Due date filter */}
         <div className="flex items-center gap-1.5">
-          <span className="text-xs text-gray-400 font-medium">Due:</span>
+          <span className="text-xs text-gray-500 font-medium">Due:</span>
           {(['all', 'overdue', 'this_week', 'none'] as const).map((opt) => (
             <button
               key={opt}
               onClick={() => setFilterDue(opt)}
-              className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${filterDue === opt ? 'bg-blue-500/30 border-blue-400 text-blue-200' : 'border-white/20 text-gray-400 hover:border-white/40 hover:text-gray-200'}`}
+              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                filterDue === opt
+                  ? 'bg-blue-50 border-blue-400 text-blue-700'
+                  : 'bg-white border-gray-300 text-gray-600 hover:border-gray-400 hover:text-gray-800'
+              }`}
             >
               {opt === 'all' ? 'All' : opt === 'overdue' ? 'Overdue' : opt === 'this_week' ? 'This week' : 'No due'}
             </button>
           ))}
         </div>
 
-        {activeFilters > 0 && (
-          <button
-            onClick={() => { setFilterLists([]); setFilterLabels([]); setFilterMembers([]); setFilterDue('all') }}
-            className="text-xs text-red-400 hover:text-red-300 ml-auto"
-          >
-            Clear filters ({activeFilters})
-          </button>
-        )}
-
-        <span className="text-xs text-gray-500 ml-auto">{sorted.length} cards</span>
+        <div className="ml-auto flex items-center gap-3">
+          {activeFilters > 0 && (
+            <button
+              onClick={() => { setFilterLists([]); setFilterLabels([]); setFilterDue('all') }}
+              className="text-xs text-red-500 hover:text-red-700"
+            >
+              Clear ({activeFilters})
+            </button>
+          )}
+          <span className="text-xs text-gray-400">{sorted.length} cards</span>
+        </div>
       </div>
 
       {/* Table */}
       <div className="flex-1 overflow-auto">
         <table className="w-full border-collapse text-sm">
-          <thead className="sticky top-0 bg-gray-900/95 backdrop-blur-sm z-10">
-            <tr className="border-b border-white/10">
-              <th className="text-left px-4 py-2.5 text-gray-400 font-medium w-8">#</th>
-              <th className="text-left px-4 py-2.5">
-                <SortBtn field="title" label="Title" />
+          <thead className="sticky top-0 bg-white z-10 border-b-2 border-gray-200">
+            <tr>
+              <th className="text-left px-4 py-3 w-8">
+                <span className="text-xs font-semibold text-gray-500">#</span>
               </th>
-              <th className="text-left px-4 py-2.5 w-36">
-                <SortBtn field="list" label="List" />
+              <th className="text-left px-4 py-3">
+                <SortHeader field="title" label="Card" />
               </th>
-              <th className="text-left px-4 py-2.5 w-40 text-gray-400 font-medium text-xs">Labels</th>
-              <th className="text-left px-4 py-2.5 w-32 text-gray-400 font-medium text-xs">Members</th>
-              <th className="text-left px-4 py-2.5 w-32">
-                <SortBtn field="dueDate" label="Due date" />
+              <th className="text-left px-4 py-3 w-44">
+                <SortHeader field="list" label="List" />
               </th>
-              <th className="text-left px-4 py-2.5 w-28 text-gray-400 font-medium text-xs">Checklist</th>
-              <th className="text-left px-4 py-2.5 w-24">
-                <SortBtn field="created" label="Created" />
+              <th className="text-left px-4 py-3 w-40">
+                <span className="text-xs font-semibold text-gray-600">Labels</span>
+              </th>
+              <th className="text-left px-4 py-3 w-32">
+                <span className="text-xs font-semibold text-gray-600">Members</span>
+              </th>
+              <th className="text-left px-4 py-3 w-32">
+                <SortHeader field="dueDate" label="Due date" />
+              </th>
+              <th className="text-left px-4 py-3 w-28">
+                <span className="text-xs font-semibold text-gray-600">Checklist</span>
+              </th>
+              <th className="text-right px-4 py-3 w-8">
+                <span className="text-gray-300 text-xs">↓</span>
               </th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-gray-100">
             {sorted.length === 0 ? (
               <tr>
-                <td colSpan={8} className="text-center text-gray-500 py-12 text-sm">
+                <td colSpan={8} className="text-center text-gray-400 py-16 text-sm">
                   No cards match the current filters
                 </td>
               </tr>
@@ -254,13 +283,11 @@ export default function BoardTable({ board, onCardClick, onCardUpdate }: Props) 
               return (
                 <tr
                   key={card.id}
-                  className="border-b border-white/5 hover:bg-white/5 group transition-colors"
+                  className="hover:bg-gray-50 group transition-colors"
                 >
-                  {/* Index */}
-                  <td className="px-4 py-2 text-gray-600 text-xs tabular-nums">{idx + 1}</td>
+                  <td className="px-4 py-2.5 text-gray-400 text-xs tabular-nums">{idx + 1}</td>
 
-                  {/* Title */}
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-2.5">
                     {isEditingTitle ? (
                       <input
                         autoFocus
@@ -271,7 +298,7 @@ export default function BoardTable({ board, onCardClick, onCardUpdate }: Props) 
                           if (e.key === 'Enter') commitTitle(card)
                           if (e.key === 'Escape') setEditingCell(null)
                         }}
-                        className="w-full bg-gray-800 border border-blue-500 rounded px-2 py-0.5 text-white text-sm outline-none"
+                        className="w-full border border-blue-400 rounded px-2 py-0.5 text-gray-900 text-sm outline-none ring-1 ring-blue-300"
                       />
                     ) : (
                       <div className="flex items-center gap-2">
@@ -279,14 +306,14 @@ export default function BoardTable({ board, onCardClick, onCardUpdate }: Props) 
                           <span className="w-1 h-4 rounded-full shrink-0" style={{ backgroundColor: card.coverColor }} />
                         )}
                         <span
-                          className="text-gray-200 cursor-pointer hover:text-white line-clamp-1"
+                          className="text-gray-800 cursor-pointer hover:text-blue-600 hover:underline line-clamp-1"
                           onClick={() => onCardClick(card)}
                         >
                           {card.title}
                         </span>
                         <button
                           onClick={() => startEdit(card, 'title')}
-                          className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-gray-300 text-xs px-1 shrink-0 transition-opacity"
+                          className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-600 text-xs shrink-0 transition-opacity ml-1"
                         >
                           ✎
                         </button>
@@ -294,58 +321,62 @@ export default function BoardTable({ board, onCardClick, onCardUpdate }: Props) 
                     )}
                   </td>
 
-                  {/* List (moveable) */}
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-2.5">
                     <select
                       value={card.listId}
                       onChange={(e) => handleMoveList(card, e.target.value)}
-                      className="bg-transparent text-gray-400 text-xs border border-transparent hover:border-white/20 rounded px-1 py-0.5 outline-none cursor-pointer hover:text-gray-200 transition-colors"
+                      className="bg-transparent text-gray-600 text-xs border border-transparent hover:border-gray-300 rounded px-1 py-0.5 outline-none cursor-pointer hover:text-gray-800 transition-colors"
                     >
                       {lists.map((l) => (
-                        <option key={l.id} value={l.id} className="bg-gray-800 text-gray-200">{l.title}</option>
+                        <option key={l.id} value={l.id}>{l.title}</option>
                       ))}
                     </select>
                   </td>
 
-                  {/* Labels */}
-                  <td className="px-4 py-2">
-                    <div className="flex flex-wrap gap-1">
-                      {card.labels?.map((l) => (
-                        <span
-                          key={l.label.id}
-                          title={l.label.name}
-                          className="inline-block h-2 w-8 rounded-full"
-                          style={{ backgroundColor: l.label.color }}
-                        />
-                      ))}
-                    </div>
+                  <td className="px-4 py-2.5">
+                    {card.labels?.length ? (
+                      <div className="flex flex-wrap gap-1">
+                        {card.labels.map((l) => (
+                          <span
+                            key={l.label.id}
+                            title={l.label.name}
+                            className="inline-block h-2 w-8 rounded-full"
+                            style={{ backgroundColor: l.label.color }}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-gray-300">·</span>
+                    )}
                   </td>
 
-                  {/* Members */}
-                  <td className="px-4 py-2">
-                    <div className="flex -space-x-1">
-                      {card.members?.slice(0, 4).map((m) => (
-                        <div
-                          key={m.user.id}
-                          title={m.user.name}
-                          className="w-6 h-6 rounded-full bg-blue-600 border-2 border-gray-900 flex items-center justify-center text-xs font-medium text-white shrink-0 overflow-hidden"
-                        >
-                          {m.user.avatarUrl
-                            ? <img src={m.user.avatarUrl} alt={m.user.name} className="w-full h-full object-cover" />
-                            : m.user.name.charAt(0).toUpperCase()
-                          }
-                        </div>
-                      ))}
-                      {(card.members?.length ?? 0) > 4 && (
-                        <div className="w-6 h-6 rounded-full bg-gray-700 border-2 border-gray-900 flex items-center justify-center text-xs text-gray-400">
-                          +{(card.members?.length ?? 0) - 4}
-                        </div>
-                      )}
-                    </div>
+                  <td className="px-4 py-2.5">
+                    {card.members?.length ? (
+                      <div className="flex -space-x-1">
+                        {card.members.slice(0, 4).map((m) => (
+                          <div
+                            key={m.user.id}
+                            title={m.user.name}
+                            className="w-6 h-6 rounded-full bg-blue-500 border-2 border-white flex items-center justify-center text-xs font-medium text-white shrink-0 overflow-hidden"
+                          >
+                            {m.user.avatarUrl
+                              ? <img src={m.user.avatarUrl} alt={m.user.name} className="w-full h-full object-cover" />
+                              : m.user.name.charAt(0).toUpperCase()
+                            }
+                          </div>
+                        ))}
+                        {(card.members?.length ?? 0) > 4 && (
+                          <div className="w-6 h-6 rounded-full bg-gray-200 border-2 border-white flex items-center justify-center text-xs text-gray-600">
+                            +{(card.members?.length ?? 0) - 4}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-gray-300">·</span>
+                    )}
                   </td>
 
-                  {/* Due date */}
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-2.5">
                     {isEditingDue ? (
                       <input
                         autoFocus
@@ -357,28 +388,22 @@ export default function BoardTable({ board, onCardClick, onCardUpdate }: Props) 
                           if (e.key === 'Enter') commitDueDate(card, editValue)
                           if (e.key === 'Escape') setEditingCell(null)
                         }}
-                        className="bg-gray-800 border border-blue-500 rounded px-1 py-0.5 text-white text-xs outline-none"
+                        className="border border-blue-400 rounded px-1 py-0.5 text-gray-900 text-xs outline-none ring-1 ring-blue-300"
                       />
                     ) : (
                       <div
-                        className="flex items-center gap-1 cursor-pointer group/due"
+                        className="cursor-pointer"
                         onClick={() => startEdit(card, 'dueDate')}
                       >
-                        {dueBadge(card.dueDate) ?? (
-                          <span className="text-gray-600 text-xs opacity-0 group-hover/due:opacity-100 transition-opacity">+ date</span>
-                        )}
+                        {dueBadge(card.dueDate)}
                       </div>
                     )}
                   </td>
 
-                  {/* Checklist */}
-                  <td className="px-4 py-2">{checklistProgress(card)}</td>
+                  <td className="px-4 py-2.5">{checklistProgress(card)}</td>
 
-                  {/* Created */}
-                  <td className="px-4 py-2 text-gray-500 text-xs tabular-nums">
-                    {card.createdAt
-                      ? new Date(card.createdAt).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })
-                      : '-'}
+                  <td className="px-4 py-2.5 text-right">
+                    <span className="text-gray-300 text-xs">↓</span>
                   </td>
                 </tr>
               )
