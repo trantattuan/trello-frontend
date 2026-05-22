@@ -7,6 +7,7 @@ import { moveCard } from '../api/cards'
 import { useSocket } from '../hooks/useSocket'
 import BoardColumn from '../components/board/BoardColumn'
 import BoardTimeline from '../components/board/BoardTimeline'
+import BoardTable from '../components/board/BoardTable'
 import AutomationPanel from '../components/automation/AutomationPanel'
 import CardModal from '../components/card/CardModal'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
@@ -26,7 +27,7 @@ export default function Board() {
   const [editingTitle, setEditingTitle] = useState(false)
   const [boardTitle, setBoardTitle] = useState('')
   const [confirm, setConfirm] = useState<Confirm | null>(null)
-  const [view, setView] = useState<'board' | 'timeline'>('board')
+  const [view, setView] = useState<'board' | 'timeline' | 'table'>('board')
   const [showAutomation, setShowAutomation] = useState(false)
 
   useEffect(() => {
@@ -175,6 +176,10 @@ export default function Board() {
             onClick={() => setView('timeline')}
             className={`text-sm px-3 py-1 rounded transition-colors ${view === 'timeline' ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'}`}
           >Timeline</button>
+          <button
+            onClick={() => setView('table')}
+            className={`text-sm px-3 py-1 rounded transition-colors ${view === 'table' ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'}`}
+          >Table</button>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <button
@@ -188,7 +193,24 @@ export default function Board() {
         </div>
       </nav>
 
-      {view === 'timeline' ? (
+      {view === 'table' ? (
+        <BoardTable
+          board={board}
+          wsMembers={wsMembers}
+          onCardClick={(card) => setSelectedCard({ ...card, checklists: card.checklists ?? [] })}
+          onCardUpdate={(updated) => setBoard((b) => {
+            if (!b) return b
+            const lists = b.lists!.map((l: List) => ({
+              ...l,
+              cards: (l.cards ?? []).filter((c: Card) => c.id !== updated.id),
+            })).map((l: List) => l.id === updated.listId
+              ? { ...l, cards: [...(l.cards ?? []), updated] }
+              : l
+            )
+            return { ...b, lists }
+          })}
+        />
+      ) : view === 'timeline' ? (
         <BoardTimeline
           board={board}
           onCardClick={(card) => setSelectedCard(card)}
