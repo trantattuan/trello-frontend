@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Board, Card, List, WorkspaceMember } from '../../types'
+import type { Board, Card, List } from '../../types'
 import { updateCard, moveCard } from '../../api/cards'
 import toast from 'react-hot-toast'
 
@@ -9,12 +9,11 @@ interface CardRow extends Card {
 
 interface Props {
   board: Board
-  wsMembers: WorkspaceMember[]
   onCardClick: (card: Card) => void
   onCardUpdate: (updated: Card) => void
 }
 
-export default function BoardTable({ board, wsMembers, onCardClick, onCardUpdate }: Props) {
+export default function BoardTable({ board, onCardClick, onCardUpdate }: Props) {
   const lists = board.lists ?? []
   const labels = board.labels ?? []
 

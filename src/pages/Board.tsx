@@ -196,7 +196,6 @@ export default function Board() {
       {view === 'table' ? (
         <BoardTable
           board={board}
-          wsMembers={wsMembers}
           onCardClick={(card) => setSelectedCard({ ...card, checklists: card.checklists ?? [] })}
           onCardUpdate={(updated) => setBoard((b) => {
             if (!b) return b
