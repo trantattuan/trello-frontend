@@ -9,6 +9,7 @@ import BoardColumn from '../components/board/BoardColumn'
 import BoardTimeline from '../components/board/BoardTimeline'
 import BoardTable from '../components/board/BoardTable'
 import AutomationPanel from '../components/automation/AutomationPanel'
+import SchedulePanel from '../components/schedule/SchedulePanel'
 import CardModal from '../components/card/CardModal'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import type { Board as BoardType, Card, List, WorkspaceMember } from '../types'
@@ -29,6 +30,7 @@ export default function Board() {
   const [confirm, setConfirm] = useState<Confirm | null>(null)
   const [view, setView] = useState<'board' | 'timeline' | 'table'>('board')
   const [showAutomation, setShowAutomation] = useState(false)
+  const [showSchedule, setShowSchedule] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -187,6 +189,10 @@ export default function Board() {
             className="text-white/70 hover:text-white hover:bg-white/10 text-sm px-3 py-1 rounded transition-colors"
           >&#9889; Automation</button>
           <button
+            onClick={() => setShowSchedule(true)}
+            className="text-white/70 hover:text-white hover:bg-white/10 text-sm px-3 py-1 rounded transition-colors"
+          >&#128337; Schedule</button>
+          <button
             onClick={handleDeleteBoard}
             className="text-red-300 hover:text-red-100 hover:bg-red-500/30 text-sm px-3 py-1 rounded transition-colors"
           >Xoa board</button>
@@ -286,6 +292,14 @@ export default function Board() {
           labels={board.labels ?? []}
           wsMembers={wsMembers}
           onClose={() => setShowAutomation(false)}
+        />
+      )}
+
+      {showSchedule && (
+        <SchedulePanel
+          boardId={board.id}
+          lists={board.lists ?? []}
+          onClose={() => setShowSchedule(false)}
         />
       )}
     </div>

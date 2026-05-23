@@ -133,3 +133,15 @@ export interface BoardStats {
   byMember: { name: string; count: number }[]
   byLabel: { name: string; color: string; count: number }[]
 }
+
+export interface ScheduledJob {
+  id: string
+  boardId: string
+  listId: string
+  title: string
+  scheduledAt?: string | null
+  cronExpression?: string | null
+  isActive: boolean
+  lastRunAt?: string | null
+  createdAt: string
+}
