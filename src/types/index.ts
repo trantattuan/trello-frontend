@@ -145,3 +145,33 @@ export interface ScheduledJob {
   lastRunAt?: string | null
   createdAt: string
 }
+
+export interface BackupSettings {
+  id: string
+  enabled: boolean
+  cronExpr: string
+  retentionCount: number
+  scopeDb: boolean
+  scopeUploads: boolean
+  rcloneRemote: string
+  remoteFolder: string
+  gdriveClientId: string
+  gdriveClientSecret: string
+  gdriveAccountEmail: string
+  updatedAt: string
+}
+
+export interface BackupRun {
+  id: string
+  kind: 'manual' | 'scheduled'
+  status: 'pending' | 'running' | 'success' | 'failed'
+  scopeDb: boolean
+  scopeUploads: boolean
+  startedAt: string
+  finishedAt?: string | null
+  sizeBytes: number
+  remotePath: string
+  error: string
+  logTail: string
+  triggeredBy?: string | null
+}
