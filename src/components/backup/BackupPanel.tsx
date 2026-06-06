@@ -62,9 +62,18 @@ function ConnectTab({ settings, onReload }: { settings: BackupSettings | null; o
 
   const handleSaveCreds = async () => {
     if (!clientId.trim()) { toast.error('Client ID is required'); return }
+    const secretTrimmed = clientSecret.trim()
+    if (!secretTrimmed && !settings?.gdriveClientSecret) {
+      toast.error('Client Secret is required')
+      return
+    }
     setSaving(true)
     try {
-      await updateGdriveCreds({ gdriveClientId: clientId.trim(), gdriveClientSecret: clientSecret.trim() })
+      await updateGdriveCreds({
+        gdriveClientId: clientId.trim(),
+        gdriveClientSecret: secretTrimmed || settings?.gdriveClientSecret || '',
+      })
+      setClientSecret('')
       toast.success('Credentials saved')
       onReload()
     } catch { toast.error('Failed to save credentials') }
@@ -124,12 +133,17 @@ function ConnectTab({ settings, onReload }: { settings: BackupSettings | null; o
           />
         </div>
         <div>
-          <label className="text-xs text-gray-600 block mb-1">Google Client Secret</label>
+          <label className="text-xs text-gray-600 block mb-1">
+            Google Client Secret
+            {settings?.gdriveClientSecret && !clientSecret && (
+              <span className="ml-2 text-green-600 font-normal">&#10003; da luu</span>
+            )}
+          </label>
           <input
             type="password"
             value={clientSecret}
             onChange={(e) => setClientSecret(e.target.value)}
-            placeholder="GOCSPX-..."
+            placeholder={settings?.gdriveClientSecret ? '(de trong = giu nguyen, nhap moi = thay the)' : 'GOCSPX-...'}
             className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm text-gray-900 outline-none focus:border-blue-500"
           />
         </div>
